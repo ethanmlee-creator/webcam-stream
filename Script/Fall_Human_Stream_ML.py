@@ -371,6 +371,8 @@ def ml_loop(shared: SharedFrame, stop_event: threading.Event, actual_fps: float)
                 verbose=False,
             )
             person_best = best_conf_from_det(person_det)
+            # After line 373 in ml_loop
+            print(f"[DEBUG] person_best={person_best:.2f} | fall_best={fall_best:.2f} | fall_consec={fall_consec}")
             person_detected = person_best >= PERSON_CONF_TRIGGER
 
             # ----------------------------
