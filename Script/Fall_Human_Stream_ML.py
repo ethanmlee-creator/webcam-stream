@@ -44,8 +44,8 @@ FALL_MODEL = "/home/gceja/Desktop/SolarPlaygroundPi/ml_scripts/best.pt"  # chang
 FALL_CLASS_ID = 0
 FALL_IMGSZ = 416
 FALL_BASE_CONF = 0.20
-FALL_CONF_TRIGGER = 0.70
-REQUIRE_FALL_CONSEC_FRAMES = 3
+FALL_CONF_TRIGGER = 0.3
+REQUIRE_FALL_CONSEC_FRAMES = 1
 
 # Camera (Pi)
 SOURCE = 0
@@ -386,7 +386,10 @@ def ml_loop(shared: SharedFrame, stop_event: threading.Event, actual_fps: float)
                     verbose=False,
                 )
                 fall_best = best_conf_from_det(fall_det)
-
+            
+                # DEBUG PRINT
+                print(f"[FALL] conf={fall_best:.3f} | threshold={FALL_CONF_TRIGGER} | consec={fall_consec}")
+            
                 if fall_best >= FALL_CONF_TRIGGER:
                     fall_consec += 1
                 else:
