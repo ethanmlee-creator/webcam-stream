@@ -37,7 +37,7 @@ PERSON_MODEL = "yolov8n.pt"
 PERSON_CLASS_ID = 0
 PERSON_IMGSZ = 416
 PERSON_BASE_CONF = 0.40
-PERSON_CONF_TRIGGER = 0.80
+PERSON_CONF_TRIGGER = 0.55
 
 # Fall model
 FALL_MODEL = "/home/gceja/Desktop/SolarPlaygroundPi/ml_scripts/best.pt"  # change if needed
@@ -65,7 +65,7 @@ ML_MAX_FPS = 4.0  # throttle when idle/not recording
 CLIP_DURATION_SEC = 3.0
 
 # Cooldowns
-PERSON_COOLDOWN_SEC = 30.0
+PERSON_COOLDOWN_SEC = 360.0
 FALL_COOLDOWN_SEC = 60.0  # keep cooldown for fall detection
 
 # Save location
@@ -371,14 +371,19 @@ def ml_loop(shared: SharedFrame, stop_event: threading.Event, actual_fps: float)
                 verbose=False,
             )
             person_best = best_conf_from_det(person_det)
-            # After line 373 in ml_loop
-            print(f"[DEBUG] person_best={person_best:.2f} | fall_best={fall_best:.2f} | fall_consec={fall_consec}")
             person_detected = person_best >= PERSON_CONF_TRIGGER
+            
+            fall_best = 0.0  # ← this needs to come first
+            
+            # NOW add the debug print here ↓
+            print(f"[DEBUG] person_best={person_best:.2f} | fall_best={fall_best:.2f} | fall_consec={fall_consec}")
+            
+          
 
             # ----------------------------
             # Stage 2: Fall detection only if person present
             # ----------------------------
-            fall_best = 0.0
+            
             if person_detected:
                 fall_det = fall_model.predict(
                     source=small,
