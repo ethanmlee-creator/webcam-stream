@@ -37,13 +37,13 @@ PERSON_MODEL = "yolov8n.pt"
 PERSON_CLASS_ID = 0
 PERSON_IMGSZ = 416
 PERSON_BASE_CONF = 0.40
-PERSON_CONF_TRIGGER = 0.55
+PERSON_CONF_TRIGGER = 0.8
 
 # Fall model
 FALL_MODEL = "/home/gceja/Desktop/SolarPlaygroundPi/ml_scripts/best.pt"  # change if needed
 FALL_CLASS_ID = 0
 FALL_IMGSZ = 416
-FALL_BASE_CONF = 0.20
+FALL_BASE_CONF = 0.01
 FALL_CONF_TRIGGER = 0.3
 REQUIRE_FALL_CONSEC_FRAMES = 1
 
@@ -386,12 +386,12 @@ def ml_loop(shared: SharedFrame, stop_event: threading.Event, actual_fps: float)
             
             if person_detected:
                 fall_det = fall_model.predict(
-                    source=small,
-                    imgsz=FALL_IMGSZ,
-                    conf=FALL_BASE_CONF,
-                    classes=[FALL_CLASS_ID],
-                    verbose=False,
-                )
+                   source=frame,   # ← full resolution frame
+                   imgsz=FALL_IMGSZ,
+                   conf=FALL_BASE_CONF,
+                   classes=[FALL_CLASS_ID],
+                   verbose=False,
+               )
                 fall_best = best_conf_from_det(fall_det)
             
                 # DEBUG PRINT
