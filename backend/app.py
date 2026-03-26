@@ -16,6 +16,7 @@ import time
 import requests
 import json
 import base64
+import uuid
 
 # Firebase Admin (Storage + Auth + Firestore + Messaging)
 try:
@@ -169,6 +170,26 @@ def init_db():
     idx_events_email = (
         "CREATE INDEX IF NOT EXISTS events_operator_email_lower_idx ON events ((lower(operator_email)));"
     )
+    ddl_notifications = (
+        "CREATE TABLE IF NOT EXISTS notifications ("
+        " id BIGSERIAL PRIMARY KEY,"
+        " event_id BIGINT REFERENCES events(id) ON DELETE SET NULL,"
+        " notification_id TEXT NOT NULL UNIQUE,"
+        " target_user_id TEXT,"
+        " target_token_doc_id TEXT,"
+        " target_token TEXT,"
+        " title TEXT,"
+        " body TEXT,"
+        " fcm_message_id TEXT,"
+        " sent_at TIMESTAMPTZ,"
+        " received_at TIMESTAMPTZ,"
+        " opened_at TIMESTAMPTZ,"
+        " created_at TIMESTAMPTZ NOT NULL DEFAULT now()"
+        ");"
+    )
+    idx_notifications_event = (
+        "CREATE INDEX IF NOT EXISTS notifications_event_id_idx ON notifications (event_id);"
+    )
     conn = get_db()
     try:
         with conn, conn.cursor() as cur:
@@ -179,6 +200,8 @@ def init_db():
             cur.execute(idx_prt)
             cur.execute(ddl_events)
             cur.execute(idx_events_email)
+            cur.execute(ddl_notifications)
+            cur.execute(idx_notifications_event)
     finally:
         conn.close()
 
@@ -208,7 +231,7 @@ def init_firebase():
 
 
 def _get_most_recent_fcm_token():
-    """Return newest FCM token for the most recently active user, or None."""
+    """Return newest FCM token metadata for the most recently active user, or None."""
     if not init_firebase():
         app.logger.warning("push_notification skipped: firebase init failed")
         return None
@@ -233,33 +256,106 @@ def _get_most_recent_fcm_token():
             for token_doc in token_docs:
                 token_data = token_doc.to_dict() or {}
                 token = (token_data.get("fcm_token") or "").strip()
+                if token:
+                    return {
+                        "user_id": d.id,
+                        "token_doc_id": token_doc.id,
+                        "token": token,
+                    }
                 break
             if not token:
                 app.logger.warning(
                     "push_notification skipped: most recent user %s has no fcm_tokens entry",
                     d.id,
                 )
-            return token or None
+            return None
         app.logger.warning("push_notification skipped: no user documents found")
     except Exception:
         app.logger.exception("push_notification failed: unable to read Firestore users collection")
         return None
 
 
-def _send_push_notification(title: str, body: str):
-    token = _get_most_recent_fcm_token()
-    if not token:
+def _insert_notification_record(event_id, notification_id, target_meta, title, body):
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO notifications (
+                        event_id,
+                        notification_id,
+                        target_user_id,
+                        target_token_doc_id,
+                        target_token,
+                        title,
+                        body
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        event_id,
+                        notification_id,
+                        (target_meta or {}).get("user_id"),
+                        (target_meta or {}).get("token_doc_id"),
+                        (target_meta or {}).get("token"),
+                        title,
+                        body,
+                    ),
+                )
+    finally:
+        conn.close()
+
+
+def _mark_notification_sent(notification_id, fcm_message_id):
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE notifications
+                    SET sent_at = now(), fcm_message_id = %s
+                    WHERE notification_id = %s
+                    """,
+                    (fcm_message_id, notification_id),
+                )
+    finally:
+        conn.close()
+
+
+def _send_push_notification(title: str, body: str, event_id=None):
+    target = _get_most_recent_fcm_token()
+    if not target:
         return False
+    notification_id = uuid.uuid4().hex
+    _insert_notification_record(event_id, notification_id, target, title, body)
     try:
         msg = fb_messaging.Message(
             notification=fb_messaging.Notification(title=title, body=body),
-            token=token,
+            data={
+                "notification_id": notification_id,
+                "event_id": str(event_id) if event_id is not None else "",
+            },
+            token=target["token"],
         )
-        fb_messaging.send(msg)
-        app.logger.warning("push_notification sent successfully")
+        fcm_message_id = fb_messaging.send(msg)
+        _mark_notification_sent(notification_id, fcm_message_id)
+        app.logger.warning(
+            "push_notification sent successfully notification_id=%s event_id=%s user_id=%s fcm_message_id=%s",
+            notification_id,
+            event_id,
+            target.get("user_id"),
+            fcm_message_id,
+        )
         return True
     except Exception:
-        app.logger.exception("push_notification failed during FCM send")
+        app.logger.exception(
+            "push_notification failed during FCM send notification_id=%s event_id=%s user_id=%s",
+            notification_id,
+            event_id,
+            target.get("user_id"),
+        )
         return False
 
 
@@ -659,6 +755,7 @@ def events_upload():
     push_sent = _send_push_notification(
         title=f"New event: {event_type or 'event'}",
         body=f"Device: {device_id or 'unknown'}",
+        event_id=ev_id,
     )
     if not push_sent:
         app.logger.info("events_upload completed without push delivery")
@@ -726,6 +823,52 @@ def events_list():
         })
 
     return jsonify({"items": out})
+
+
+@app.route('/notifications/received', methods=['POST'])
+def notification_received():
+    payload = verify_auth(request.headers.get('Authorization', ''))
+    if not payload:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json() or {}
+    notification_id = (data.get("notification_id") or "").strip()
+    if not notification_id:
+        return jsonify({"error": "notification_id required"}), 400
+
+    conn = get_db()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    UPDATE notifications
+                    SET received_at = COALESCE(received_at, now())
+                    WHERE notification_id = %s
+                    RETURNING notification_id, event_id, sent_at, received_at, opened_at
+                    """,
+                    (notification_id,),
+                )
+                row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "notification not found"}), 404
+        app.logger.info(
+            "notification receipt recorded notification_id=%s event_id=%s user_email=%s received_at=%s",
+            row["notification_id"],
+            row["event_id"],
+            payload.get("email"),
+            row["received_at"].isoformat() if row.get("received_at") else None,
+        )
+        return jsonify({
+            "ok": True,
+            "notification_id": row["notification_id"],
+            "event_id": row["event_id"],
+            "sent_at": row["sent_at"].isoformat() if row.get("sent_at") else None,
+            "received_at": row["received_at"].isoformat() if row.get("received_at") else None,
+            "opened_at": row["opened_at"].isoformat() if row.get("opened_at") else None,
+        })
+    finally:
+        conn.close()
 
 
 @app.route('/webrtc/token', methods=['POST', 'OPTIONS'])
