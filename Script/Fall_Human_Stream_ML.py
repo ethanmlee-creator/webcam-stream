@@ -43,8 +43,8 @@ PERSON_CONF_TRIGGER = 0.8
 FALL_MODEL = "/home/gceja/Desktop/SolarPlaygroundPi/ml_scripts/best.pt"  # change if needed
 FALL_CLASS_ID = 0
 FALL_IMGSZ = 416
-FALL_BASE_CONF = 0.01
-FALL_CONF_TRIGGER = 0.3
+FALL_BASE_CONF = 0.05
+FALL_CONF_TRIGGER = 0.6
 REQUIRE_FALL_CONSEC_FRAMES = 1
 
 # Camera (Pi)
