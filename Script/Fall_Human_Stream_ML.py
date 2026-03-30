@@ -37,7 +37,7 @@ PERSON_MODEL = "yolov8n.pt"
 PERSON_CLASS_ID = 0
 PERSON_IMGSZ = 416
 PERSON_BASE_CONF = 0.40
-PERSON_CONF_TRIGGER = 0.8
+PERSON_CONF_TRIGGER = 0.85
 
 # Fall model
 FALL_MODEL = "/home/gceja/Desktop/SolarPlaygroundPi/ml_scripts/best.pt"  # change if needed
