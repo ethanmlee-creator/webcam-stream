@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "989431883047",
+    "project_id": "solar-playground-b685e",
+    "storage_bucket": "solar-playground-b685e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:989431883047:android:39cea837f398b16b027502",
+        "android_client_info": {
+          "package_name": "com.mycompany.solarplayground44"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDJvXrSzL_lugTmmol190-1XAewHfu_8gY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
