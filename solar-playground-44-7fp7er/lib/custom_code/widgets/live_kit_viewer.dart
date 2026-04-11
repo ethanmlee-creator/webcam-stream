@@ -54,9 +54,23 @@ class _LiveKitViewerState extends State<LiveKitViewer> {
       }
     });
 
+    // Pick up tracks already published before we joined
+    RemoteVideoTrack? existingTrack;
+    for (final participant in room.remoteParticipants.values) {
+      for (final publication in participant.videoTrackPublications) {
+        final track = publication.track;
+        if (track is RemoteVideoTrack) {
+          existingTrack = track;
+          break;
+        }
+      }
+      if (existingTrack != null) break;
+    }
+
     setState(() {
       _room = room;
       _listener = listener;
+      if (existingTrack != null) _videoTrack = existingTrack;
     });
   }
 
