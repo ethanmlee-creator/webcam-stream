@@ -44,7 +44,7 @@ FALL_MODEL = "/home/gceja/Desktop/SolarPlaygroundPi/ml_scripts/best.pt"  # chang
 FALL_CLASS_ID = 0
 FALL_IMGSZ = 416
 FALL_BASE_CONF = 0.05
-FALL_CONF_TRIGGER = 0.6
+FALL_CONF_TRIGGER = 0.48
 REQUIRE_FALL_CONSEC_FRAMES = 1
 
 # Camera (Pi)
