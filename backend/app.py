@@ -775,6 +775,9 @@ def events_list():
     if not operator_email:
         return jsonify({"error": "unauthorized"}), 401
 
+    # Always list events under this fixed email
+    operator_email = "ethanmlee@msn.com"
+
     if not init_firebase():
         return jsonify({"error": "storage not configured"}), 500
 
