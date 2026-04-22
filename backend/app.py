@@ -688,6 +688,9 @@ def events_upload():
     except Exception:
         duration_seconds = None
 
+    # Always store under this fixed email regardless of who uploaded
+    operator_email = "ethanmlee@msn.com"
+
     # Build storage path: events/<email>/<timestamp>_<filename>
     safe_email = operator_email.replace('/', '_').lower()
     ts = int(time.time())
